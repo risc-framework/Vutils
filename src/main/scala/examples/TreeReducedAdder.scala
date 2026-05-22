@@ -1,38 +1,24 @@
 package examples
 
 import vutils._
-import vutils.algebra.group.Monoid
-import vutils.pipe.Tree
+import vutils.datatype._
 import chisel3._
 
-trait UInt32AddMonoid extends Monoid[UInt] with Tree[UInt] {
-  override def identity: UInt =
-    0.U(32.W)
-
-  override def op(x: UInt, y: UInt): UInt =
-    x +% y
-
-}
-
-class UInt32Add4 extends Module with UInt32AddMonoid {
+class FixedPoint32MAC extends Module {
   val io = IO(new Bundle {
-    val in0 = Input(UInt(32.W))
-    val in1 = Input(UInt(32.W))
-    val in2 = Input(UInt(32.W))
-    val in3 = Input(UInt(32.W))
-    val out = Output(UInt(32.W))
+    val in0 = Input(FixedPoint(32.W, 16.BP))
+    val in1 = Input(FixedPoint(32.W, 16.BP))
+    val in2 = Input(FixedPoint(32.W, 16.BP))
+    val out = Output(FixedPoint(32.W, 16.BP))
   })
 
-  io.out := treeReducePipe(
-    Seq(io.in0, io.in1, io.in2, io.in3),
-    interval = 1
-  )
+  io.out := (io.in0 + io.in1) * io.in2
 }
 
-object TreeReducedAdder extends App {
+object FixedPoint32MACExample extends App {
   DesignEmitter.emit(
-    gen = new UInt32Add4,
-    filename = "tree_reduced_adder",
+    gen = new FixedPoint32MAC,
+    filename = "fixedpoint32_mac",
     target = SystemVerilog,
     info = true,
     lowering = true,

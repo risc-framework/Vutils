@@ -5,7 +5,8 @@ ThisBuild / publishTo    := Some(
   Resolver.file("local-ivy", file(Path.userHome + "/.ivy2/local"))
 )
 
-val chiselVersion = "7.0.0"
+val hardfloatVersion = "1.5-SNAPSHOT"
+val chiselVersion    = "7.0.0"
 
 ThisBuild / scalacOptions ++= Seq(
   "-language:reflectiveCalls",
@@ -23,6 +24,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.scalatest"     %% "scalatest" % "3.2.20" % Test,
       "org.chipsalliance" %% "chisel"    % chiselVersion,
+      "edu.berkeley.cs"   %% "hardfloat" % hardfloatVersion,
     ),
     addCompilerPlugin(
       "org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full
