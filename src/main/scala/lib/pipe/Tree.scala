@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.util.ShiftRegister
 
 trait Tree[T <: Data] extends SemiGroup[T] {
-  def treeReduce(items: Seq[T]): T =
+  protected def treeReduce(items: Seq[T]): T =
     items.length match {
       case 0 =>
         throw new IllegalArgumentException("treeReduce on empty array!")
@@ -21,7 +21,7 @@ trait Tree[T <: Data] extends SemiGroup[T] {
         op(lhs, rhs)
     }
 
-  def treeReducePipe(items: Seq[T], interval: Int = 1): T = {
+  protected def treeReducePipe(items: Seq[T], interval: Int = 1): T = {
     require(interval >= 0, "treeReducePipe: interval must be >= 0")
 
     items.length match {
