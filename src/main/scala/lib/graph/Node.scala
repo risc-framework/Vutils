@@ -8,7 +8,6 @@ final case class NodeType(name: String) {
 
 abstract class Node[I <: Bundle](gen: => I) extends Module {
   def nodeType: NodeType
-  def implName: String
 
   val io: I = IO(gen)
 }
@@ -28,8 +27,8 @@ trait NodeImpl[I <: Bundle] extends NodeNamed {
 class NodeImplRegistry[I <: Bundle](val nodeType: NodeType) extends NodeRegistry[NodeImpl[I]](s"Node:${nodeType.name}") {
   def select(required: NodeSelector): NodeImpl[I] = {
     val candidates = getAll().filter(impl => impl.nodeType == nodeType && impl.matches(required))
-    val bestScore = candidates.map(_.score(required)).reduceOption(_ max _).getOrElse(-1)
-    val best = candidates.filter(_.score(required) == bestScore)
+    val bestScore  = candidates.map(_.score(required)).reduceOption(_ max _).getOrElse(-1)
+    val best       = candidates.filter(_.score(required) == bestScore)
 
     if (best.isEmpty) {
       throw new NoSuchElementException(s"Node '${nodeType.name}': no implementation for selector '${required.canonicalName}'. Available: ${getAll().map(_.name).mkString(", ")}")

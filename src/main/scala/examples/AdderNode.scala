@@ -1,4 +1,4 @@
-package example
+package examples
 
 import vutils._
 import vutils.graph._
@@ -89,8 +89,8 @@ object AdderNodeInit {
 }
 
 class AdderNode(config: NodeConfig) extends Node(new AdderNodeIO(config.optionOrElse[Int]("width", 32))) {
-  override def nodeType: NodeType = AdderNodeMeta.Type
-  override def implName: String   = s"adder_${config.selector.canonicalName}"
+  override def nodeType: NodeType  = AdderNodeMeta.Type
+  override def desiredName: String = s"adder_${config.selector.canonicalName}"
 
   private val modeImpl = AdderModeFactory.select(config)
   private val pipeImpl = AdderPipeFactory.select(config)
