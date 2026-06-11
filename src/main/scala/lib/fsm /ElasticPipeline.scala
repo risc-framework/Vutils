@@ -3,9 +3,9 @@ package vutils.fsm
 import chisel3._
 import chisel3.util.DecoupledIO
 
-final class ElasticStage[T <: Data] private[fsm] (
+final class ElasticStage[T <: Data, N <: Data] private[fsm] (
   val id: Int,
-  val name: String,
+  val node: N,
   private[fsm] val localReady: Bool,
   private[fsm] val validReg: Bool,
   private[fsm] val bitsReg: T,
@@ -17,7 +17,7 @@ final class ElasticStage[T <: Data] private[fsm] (
   def ready: Bool = readyWire
   def fire: Bool  = fireWire
 
-  override def toString: String = s"ElasticStage($id, $name)"
+  override def toString: String = s"ElasticStage($id, $node)"
 }
 
 final class ElasticMove private[fsm] (
@@ -29,26 +29,27 @@ final class ElasticMove private[fsm] (
   override def toString: String = s"ElasticMove($name)"
 }
 
-final class ElasticGraph[T <: Data] private[fsm] (
-  val stages: Seq[ElasticStage[T]],
+final class ElasticGraph[T <: Data, N <: Data] private[fsm] (
+  val stages: Seq[ElasticStage[T, N]],
   val moves: Seq[ElasticMove]
 ) {
-  def apply(index: Int): ElasticStage[T] = stages(index)
+  def apply(index: Int): ElasticStage[T, N] = stages(index)
 
-  def find(name: String): Option[ElasticStage[T]] = stages.find(_.name == name)
+  def apply(node: N): ElasticStage[T, N] =
+    find(node).getOrElse(throw new NoSuchElementException(s"unknown elastic node: $node"))
 
-  def get(name: String): ElasticStage[T] =
-    find(name).getOrElse(throw new NoSuchElementException(s"unknown elastic stage: $name"))
+  def find(node: N): Option[ElasticStage[T, N]] =
+    stages.find(_.node == node)
 }
 
-final class ElasticGraphBuilder[T <: Data] private[fsm] (
+final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
   gen: T,
   clear: Bool,
   enable: Bool
 ) {
   final private class StageEdge(
-    val from: ElasticStage[T],
-    val to: ElasticStage[T],
+    val from: ElasticStage[T, N],
+    val to: ElasticStage[T, N],
     val trigger: Bool,
     val move: ElasticMove,
     val order: Int
@@ -56,21 +57,21 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
 
   final private class SourceEdge(
     val in: DecoupledIO[T],
-    val to: ElasticStage[T],
+    val to: ElasticStage[T, N],
     val trigger: Bool,
     val move: ElasticMove,
     val order: Int
   )
 
   final private class SinkEdge(
-    val from: ElasticStage[T],
+    val from: ElasticStage[T, N],
     val out: DecoupledIO[T],
     val trigger: Bool,
     val move: ElasticMove,
     val order: Int
   )
 
-  private val stages      = scala.collection.mutable.ArrayBuffer[ElasticStage[T]]()
+  private val stages      = scala.collection.mutable.ArrayBuffer[ElasticStage[T, N]]()
   private val stageEdges  = scala.collection.mutable.ArrayBuffer[StageEdge]()
   private val sourceEdges = scala.collection.mutable.ArrayBuffer[SourceEdge]()
   private val sinkEdges   = scala.collection.mutable.ArrayBuffer[SinkEdge]()
@@ -87,24 +88,30 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
   private def boolOr(values: Iterable[Bool]): Bool =
     if (values.isEmpty) false.B else values.reduce(_ || _)
 
-  private def outgoingOf(stage: ElasticStage[T]): Seq[Either[StageEdge, SinkEdge]] = {
+  private def nodeName(node: N): String =
+    node.toString
+
+  private def outgoingOf(stage: ElasticStage[T, N]): Seq[Either[StageEdge, SinkEdge]] = {
     val stageOut = stageEdges.filter(_.from.id == stage.id).map(edge => Left(edge): Either[StageEdge, SinkEdge])
     val sinkOut  = sinkEdges.filter(_.from.id == stage.id).map(edge => Right(edge): Either[StageEdge, SinkEdge])
+
     (stageOut ++ sinkOut).sortBy {
       case Left(edge)  => edge.order
       case Right(edge) => edge.order
     }.toSeq
   }
 
-  def stage(name: String, ready: Bool = true.B): ElasticStage[T] = {
+  def stage(node: N, ready: Bool = true.B): ElasticStage[T, N] = {
+    require(!stages.exists(_.node == node), s"duplicate elastic node: $node")
+
     val valid     = RegInit(false.B)
     val bits      = Reg(gen)
     val readyWire = WireDefault(false.B)
     val fireWire  = WireDefault(false.B)
 
-    val stage = new ElasticStage[T](
+    val s = new ElasticStage[T, N](
       id = stages.length,
-      name = name,
+      node = node,
       localReady = ready,
       validReg = valid,
       bitsReg = bits,
@@ -112,13 +119,13 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
       fireWire = fireWire
     )
 
-    stages += stage
-    stage
+    stages += s
+    s
   }
 
-  def source(in: DecoupledIO[T], to: ElasticStage[T], trigger: Bool = true.B): ElasticMove = {
+  def source(in: DecoupledIO[T], to: ElasticStage[T, N], trigger: Bool = true.B): ElasticMove = {
     val fire = WireDefault(false.B)
-    val move = new ElasticMove(s"source -> ${to.name}", fire)
+    val move = new ElasticMove(s"source -> ${nodeName(to.node)}", fire)
 
     sourceEdges += new SourceEdge(in, to, trigger, move, nextOrder())
     moves += move
@@ -126,9 +133,9 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
     move
   }
 
-  def connect(from: ElasticStage[T], to: ElasticStage[T], trigger: Bool = true.B): ElasticMove = {
+  def connect(from: ElasticStage[T, N], to: ElasticStage[T, N], trigger: Bool = true.B): ElasticMove = {
     val fire = WireDefault(false.B)
-    val move = new ElasticMove(s"${from.name} -> ${to.name}", fire)
+    val move = new ElasticMove(s"${nodeName(from.node)} -> ${nodeName(to.node)}", fire)
 
     stageEdges += new StageEdge(from, to, trigger, move, nextOrder())
     moves += move
@@ -136,9 +143,9 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
     move
   }
 
-  def sink(from: ElasticStage[T], out: DecoupledIO[T], trigger: Bool = true.B): ElasticMove = {
+  def sink(from: ElasticStage[T, N], out: DecoupledIO[T], trigger: Bool = true.B): ElasticMove = {
     val fire = WireDefault(false.B)
-    val move = new ElasticMove(s"${from.name} -> sink", fire)
+    val move = new ElasticMove(s"${nodeName(from.node)} -> sink", fire)
 
     sinkEdges += new SinkEdge(from, out, trigger, move, nextOrder())
     moves += move
@@ -146,15 +153,15 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
     move
   }
 
-  private[fsm] def finish(): ElasticGraph[T] = {
+  private[fsm] def finish(): ElasticGraph[T, N] = {
     require(stages.nonEmpty, "ElasticGraph requires at least one stage")
 
     for (edge <- stageEdges)
-      require(edge.from.id < edge.to.id, s"ElasticGraph only supports forward DAG/tree edges, got ${edge.from.name} -> ${edge.to.name}")
+      require(edge.from.id < edge.to.id, s"ElasticGraph only supports forward DAG/tree edges, got ${edge.from.node} -> ${edge.to.node}")
 
     for (stage <- stages) {
       val incomingCount = sourceEdges.count(_.to.id == stage.id) + stageEdges.count(_.to.id == stage.id)
-      require(incomingCount <= 1, s"ElasticGraph currently supports at most one incoming edge per stage, but ${stage.name} has $incomingCount")
+      require(incomingCount <= 1, s"ElasticGraph currently supports at most one incoming edge per stage, but ${stage.node} has $incomingCount")
     }
 
     val canAccept = Seq.fill(stages.length)(WireDefault(false.B))
@@ -251,7 +258,7 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
       }
     }
 
-    new ElasticGraph[T](
+    new ElasticGraph[T, N](
       stages = stages.toSeq,
       moves = moves.toSeq
     )
@@ -259,14 +266,15 @@ final class ElasticGraphBuilder[T <: Data] private[fsm] (
 }
 
 trait ElasticGraphSyntax { this: Module =>
-  final protected def elastic[T <: Data](
+  final protected def elastic[T <: Data, E <: ChiselEnum](
     gen: T,
+    nodeType: E,
     clear: Bool = false.B,
     enable: Bool = true.B
   )(
-    build: ElasticGraphBuilder[T] => Unit
-  ): ElasticGraph[T] = {
-    val builder = new ElasticGraphBuilder[T](gen, clear, enable)
+    build: ElasticGraphBuilder[T, nodeType.Type] => Unit
+  ): ElasticGraph[T, nodeType.Type] = {
+    val builder = new ElasticGraphBuilder[T, nodeType.Type](gen, clear, enable)
     build(builder)
     builder.finish()
   }

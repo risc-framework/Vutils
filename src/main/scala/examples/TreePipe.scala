@@ -1,9 +1,13 @@
 package examples
 
-import vutils.fsm.ElasticGraphSyntax
 import vutils._
+import vutils.fsm.ElasticGraphSyntax
 import chisel3._
 import chisel3.util.Decoupled
+
+object TreeNode extends ChiselEnum {
+  val A, B1, B2, C, D = Value
+}
 
 class TreeReq extends Bundle {
   val data = UInt(32.W)
@@ -29,14 +33,14 @@ class TreePipe extends Module with ElasticGraphSyntax {
     val dValid  = Output(Bool())
   })
 
-  private val p = elastic(new TreeReq, clear = io.clear, enable = io.enable) { g =>
+  private val p = elastic(new TreeReq, TreeNode, clear = io.clear, enable = io.enable) { g =>
     import g._
 
-    val A  = stage("A")
-    val B1 = stage("B1", ready = !io.b1Stuck)
-    val B2 = stage("B2", ready = !io.b2Stuck)
-    val C  = stage("C")
-    val D  = stage("D")
+    val A  = stage(TreeNode.A)
+    val B1 = stage(TreeNode.B1, ready = !io.b1Stuck)
+    val B2 = stage(TreeNode.B2, ready = !io.b2Stuck)
+    val C  = stage(TreeNode.C)
+    val D  = stage(TreeNode.D)
 
     source(io.in, A)
 
@@ -50,11 +54,11 @@ class TreePipe extends Module with ElasticGraphSyntax {
     sink(D, io.outD)
   }
 
-  io.aValid  := p.get("A").valid
-  io.b1Valid := p.get("B1").valid
-  io.b2Valid := p.get("B2").valid
-  io.cValid  := p.get("C").valid
-  io.dValid  := p.get("D").valid
+  io.aValid  := p(TreeNode.A).valid
+  io.b1Valid := p(TreeNode.B1).valid
+  io.b2Valid := p(TreeNode.B2).valid
+  io.cValid  := p(TreeNode.C).valid
+  io.dValid  := p(TreeNode.D).valid
 }
 
 object TreePipeExample extends App {
