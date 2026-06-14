@@ -2,6 +2,7 @@ package vutils.fsm
 
 import chisel3._
 import chisel3.util.DecoupledIO
+import scala.collection.mutable.ArrayBuffer
 
 final class ElasticStage[T <: Data, N <: Data] private[fsm] (
   val id: Int,
@@ -71,11 +72,11 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
     val order: Int
   )
 
-  private val stages      = scala.collection.mutable.ArrayBuffer[ElasticStage[T, N]]()
-  private val stageEdges  = scala.collection.mutable.ArrayBuffer[StageEdge]()
-  private val sourceEdges = scala.collection.mutable.ArrayBuffer[SourceEdge]()
-  private val sinkEdges   = scala.collection.mutable.ArrayBuffer[SinkEdge]()
-  private val moves       = scala.collection.mutable.ArrayBuffer[ElasticMove]()
+  private val stages      = ArrayBuffer[ElasticStage[T, N]]()
+  private val stageEdges  = ArrayBuffer[StageEdge]()
+  private val sourceEdges = ArrayBuffer[SourceEdge]()
+  private val sinkEdges   = ArrayBuffer[SinkEdge]()
+  private val moves       = ArrayBuffer[ElasticMove]()
 
   private var order = 0
 

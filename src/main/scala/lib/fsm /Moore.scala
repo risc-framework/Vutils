@@ -2,6 +2,7 @@ package vutils.fsm
 
 import chisel3._
 import chisel3.util.MuxCase
+import scala.collection.mutable.ArrayBuffer
 
 final class MooreNode[S <: Data] private[fsm] (
   val id: Int,
@@ -66,8 +67,8 @@ final class MooreBuilder[S <: Data] private[fsm] (
   clear: Bool,
   enable: Bool
 ) {
-  private val nodes  = scala.collection.mutable.ArrayBuffer[MooreNode[S]]()
-  private val events = scala.collection.mutable.ArrayBuffer[MooreEvent[S]]()
+  private val nodes  = ArrayBuffer[MooreNode[S]]()
+  private val events = ArrayBuffer[MooreEvent[S]]()
   private var order  = 0
 
   private def nextOrder(): Int = {
