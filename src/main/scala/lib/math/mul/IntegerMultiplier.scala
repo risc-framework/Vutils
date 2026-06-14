@@ -2,6 +2,7 @@ package vutils.math.mul
 
 import chisel3._
 import chisel3.util.{ Cat, Decoupled, log2Ceil, switch, is }
+import scala.collection.mutable.ArrayBuffer
 
 class IntegerMultiplierReq(val dw: Int) extends Bundle {
   val multiplicand = UInt(dw.W)
@@ -124,7 +125,7 @@ class IntegerMultiplier(dw: Int, pipeline_stages: Int = 1) extends Module {
     var layer = inputs
 
     while (layer.length > 2) {
-      val next = scala.collection.mutable.ArrayBuffer[UInt]()
+      val next = ArrayBuffer[UInt]()
       var i    = 0
 
       while (i < layer.length)
@@ -180,7 +181,7 @@ class IntegerMultiplier(dw: Int, pipeline_stages: Int = 1) extends Module {
     var layerIndex = 0
 
     while (layer.length > 2) {
-      val next = scala.collection.mutable.ArrayBuffer[UInt]()
+      val next = ArrayBuffer[UInt]()
       var i    = 0
 
       while (i < layer.length)
