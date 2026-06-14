@@ -46,6 +46,14 @@ object NodePortProtocol {
   case object DecoupledVec extends NodePortProtocol {
     override def name: String = "decoupled_vec"
   }
+
+  def lane(protocol: NodePortProtocol): NodePortProtocol =
+    protocol match {
+      case RawVec       => Raw
+      case ValidVec     => Valid
+      case DecoupledVec => Decoupled
+      case other        => other
+    }
 }
 
 final class NodeLanes[Lane <: Data] private[vutils] (
@@ -107,6 +115,28 @@ final class NodeOut[C, PortData <: Data] private[vutils] (
   out.suggestName(name)
 }
 
+final class NodeInLane[C, Lane <: Data] private[vutils] (
+  val owner: Node[C],
+  val name: String,
+  val protocol: NodePortProtocol,
+  val index: Int,
+  val in: Lane
+) extends NodeInputPort[C, Lane] {
+  override val role: NodePortRole         = NodePortRole.Sink
+  override private[vutils] val data: Lane = in
+}
+
+final class NodeOutLane[C, Lane <: Data] private[vutils] (
+  val owner: Node[C],
+  val name: String,
+  val protocol: NodePortProtocol,
+  val index: Int,
+  val out: Lane
+) extends NodeOutputPort[C, Lane] {
+  override val role: NodePortRole         = NodePortRole.Source
+  override private[vutils] val data: Lane = out
+}
+
 final class NodeInVec[C, Lane <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
@@ -117,6 +147,14 @@ final class NodeInVec[C, Lane <: Data] private[vutils] (
   override private[vutils] val data: Vec[Lane] = raw
 
   val in: NodeLanes[Lane] = new NodeLanes(raw)
+
+  def lane(idx: Int): NodeInLane[C, Lane] = {
+    require(idx >= 0 && idx < raw.length, s"NodeInVec '$fullName' lane index $idx out of range 0..${raw.length - 1}")
+    new NodeInLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
+  }
+
+  def lanes(idx: Int): NodeInLane[C, Lane] =
+    lane(idx)
 
   raw.suggestName(name)
 }
@@ -131,6 +169,14 @@ final class NodeOutVec[C, Lane <: Data] private[vutils] (
   override private[vutils] val data: Vec[Lane] = raw
 
   val out: NodeLanes[Lane] = new NodeLanes(raw)
+
+  def lane(idx: Int): NodeOutLane[C, Lane] = {
+    require(idx >= 0 && idx < raw.length, s"NodeOutVec '$fullName' lane index $idx out of range 0..${raw.length - 1}")
+    new NodeOutLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
+  }
+
+  def lanes(idx: Int): NodeOutLane[C, Lane] =
+    lane(idx)
 
   raw.suggestName(name)
 }
