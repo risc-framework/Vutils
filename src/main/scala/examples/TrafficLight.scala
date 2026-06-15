@@ -20,7 +20,7 @@ class TrafficLight extends Module with Moore {
     val nextState = Output(TraficLightColor())
   })
 
-  private val fsm = moore(TraficLightColor)(TraficLightColor.Red, clear = io.clear, enable = io.enable) { g =>
+  private val fsm = moore(TraficLightColor.Red, clear = io.clear, enable = io.enable) { g =>
     import g._
 
     val Red    = state(TraficLightColor.Red)

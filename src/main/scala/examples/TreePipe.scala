@@ -33,7 +33,7 @@ class TreePipe extends Module with ElasticGraphSyntax {
     val dValid  = Output(Bool())
   })
 
-  private val p = elastic(new TreeReq, TreeNode, clear = io.clear, enable = io.enable) { g =>
+  private val p = elastic(new TreeReq, TreeNode.A, clear = io.clear, enable = io.enable) { g =>
     import g._
 
     val A  = stage(TreeNode.A)

@@ -34,13 +34,18 @@ final class ElasticGraph[T <: Data, N <: Data] private[fsm] (
   val stages: Seq[ElasticStage[T, N]],
   val moves: Seq[ElasticMove]
 ) {
+  private def keyOf(value: Data): BigInt =
+    value.litOption.getOrElse(throw new NoSuchElementException(s"ElasticGraph node must be a literal enum value, got $value"))
+
   def apply(index: Int): ElasticStage[T, N] = stages(index)
 
-  def apply(node: N): ElasticStage[T, N] =
+  def apply(node: Data): ElasticStage[T, N] =
     find(node).getOrElse(throw new NoSuchElementException(s"unknown elastic node: $node"))
 
-  def find(node: N): Option[ElasticStage[T, N]] =
-    stages.find(_.node == node)
+  def find(node: Data): Option[ElasticStage[T, N]] = {
+    val key = keyOf(node)
+    stages.find(stage => keyOf(stage.node) == key)
+  }
 }
 
 final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
@@ -89,6 +94,12 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
   private def boolOr(values: Iterable[Bool]): Bool =
     if (values.isEmpty) false.B else values.reduce(_ || _)
 
+  private def keyOf(value: Data): BigInt =
+    value.litOption.getOrElse(throw new NoSuchElementException(s"ElasticGraph node must be a literal enum value, got $value"))
+
+  private def sameNode(lhs: Data, rhs: Data): Boolean =
+    keyOf(lhs) == keyOf(rhs)
+
   private def nodeName(node: N): String =
     node.toString
 
@@ -103,7 +114,7 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
   }
 
   def stage(node: N, ready: Bool = true.B): ElasticStage[T, N] = {
-    require(!stages.exists(_.node == node), s"duplicate elastic node: $node")
+    require(!stages.exists(stage => sameNode(stage.node, node)), s"duplicate elastic node: $node")
 
     val valid     = RegInit(false.B)
     val bits      = Reg(gen)
@@ -165,10 +176,16 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
       require(incomingCount <= 1, s"ElasticGraph currently supports at most one incoming edge per stage, but ${stage.node} has $incomingCount")
     }
 
-    val canAccept = Seq.fill(stages.length)(WireDefault(false.B))
-    val canLeave  = Seq.fill(stages.length)(WireDefault(false.B))
+    val stageSeq      = stages.toSeq
+    val stageEdgeSeq  = stageEdges.toSeq
+    val sourceEdgeSeq = sourceEdges.toSeq
+    val sinkEdgeSeq   = sinkEdges.toSeq
+    val moveSeq       = moves.toSeq
 
-    for (stage <- stages.reverse) {
+    val canAccept = Seq.fill(stageSeq.length)(WireDefault(false.B))
+    val canLeave  = Seq.fill(stageSeq.length)(WireDefault(false.B))
+
+    for (stage <- stageSeq.reverse) {
       var priorTrigger = false.B
 
       val leaveTerms = outgoingOf(stage).map {
@@ -190,17 +207,17 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
       stage.readyWire     := canAccept(stage.id)
     }
 
-    for (src <- sourceEdges) {
+    for (src <- sourceEdgeSeq) {
       src.in.ready      := enable && !clear && src.trigger && canAccept(src.to.id)
       src.move.fireWire := src.in.valid && src.in.ready
     }
 
-    for (sink <- sinkEdges) {
+    for (sink <- sinkEdgeSeq) {
       sink.out.valid := false.B
       sink.out.bits  := 0.U.asTypeOf(gen)
     }
 
-    for (stage <- stages) {
+    for (stage <- stageSeq) {
       var priorTrigger = false.B
 
       val fireTerms = outgoingOf(stage).map {
@@ -228,9 +245,9 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
       stage.fireWire := boolOr(fireTerms)
     }
 
-    for (stage <- stages) {
-      val sourceIn = sourceEdges.find(_.to.id == stage.id)
-      val stageIn  = stageEdges.find(_.to.id == stage.id)
+    for (stage <- stageSeq) {
+      val sourceIn = sourceEdgeSeq.find(_.to.id == stage.id)
+      val stageIn  = stageEdgeSeq.find(_.to.id == stage.id)
 
       val incomingFire = boolOr(sourceIn.map(_.move.fire).toSeq ++ stageIn.map(_.move.fire).toSeq)
       val incomingBits = WireDefault(0.U.asTypeOf(gen))
@@ -260,22 +277,22 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
     }
 
     new ElasticGraph[T, N](
-      stages = stages.toSeq,
-      moves = moves.toSeq
+      stages = stageSeq,
+      moves = moveSeq
     )
   }
 }
 
 trait ElasticGraphSyntax { this: Module =>
-  final protected def elastic[T <: Data, E <: ChiselEnum](
+  final protected def elastic[T <: Data, N <: Data](
     gen: T,
-    nodeType: E,
+    nodeWitness: N,
     clear: Bool = false.B,
     enable: Bool = true.B
   )(
-    build: ElasticGraphBuilder[T, nodeType.Type] => Unit
-  ): ElasticGraph[T, nodeType.Type] = {
-    val builder = new ElasticGraphBuilder[T, nodeType.Type](gen, clear, enable)
+    build: ElasticGraphBuilder[T, N] => Unit
+  ): ElasticGraph[T, N] = {
+    val builder = new ElasticGraphBuilder[T, N](gen, clear, enable)
     build(builder)
     builder.finish()
   }

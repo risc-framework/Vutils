@@ -166,16 +166,14 @@ final class MooreBuilder[S <: Data] private[fsm] (
 }
 
 trait Moore { this: Module =>
-  final protected def moore[E <: ChiselEnum](
-    stateType: E
-  )(
-    start: stateType.Type,
+  final protected def moore[S <: Data](
+    start: S,
     clear: Bool = false.B,
     enable: Bool = true.B
   )(
-    build: MooreBuilder[stateType.Type] => Unit
-  ): MooreGraph[stateType.Type] = {
-    val builder = new MooreBuilder[stateType.Type](start, clear, enable)
+    build: MooreBuilder[S] => Unit
+  ): MooreGraph[S] = {
+    val builder = new MooreBuilder[S](start, clear, enable)
     build(builder)
     builder.finish()
   }
