@@ -49,12 +49,12 @@ final class MooreGraph[S <: Data] private[fsm] (
   val nodes: Seq[MooreNode[S]],
   val events: Seq[MooreEvent[S]]
 ) {
-  private def keyOf(value: S): BigInt =
+  private def keyOf(value: Data): BigInt =
     value.litOption.getOrElse(throw new NoSuchElementException(s"MooreGraph node must be a literal enum value, got $value"))
 
   def apply(index: Int): MooreNode[S] = nodes(index)
 
-  def apply(value: S): MooreNode[S] = {
+  def apply(value: Data): MooreNode[S] = {
     val key = keyOf(value)
     nodes.find(node => keyOf(node.value) == key).getOrElse(throw new NoSuchElementException(s"unknown Moore node: $value"))
   }
@@ -77,7 +77,7 @@ final class MooreBuilder[S <: Data] private[fsm] (
     value
   }
 
-  private def keyOf(value: S): BigInt =
+  private def keyOf(value: Data): BigInt =
     value.litOption.getOrElse(throw new NoSuchElementException(s"Moore state must be a literal enum value, got $value"))
 
   def state(value: S): MooreNode[S] = {
@@ -114,14 +114,11 @@ final class MooreBuilder[S <: Data] private[fsm] (
     new MooreEventHandle(event)
   }
 
-  def trans(from: MooreNode[S], to: MooreNode[S]): MooreEventHandle[S] =
-    addEvent(from, to, true.B)
+  def trans(from: MooreNode[S], to: MooreNode[S]): MooreEventHandle[S] = addEvent(from, to, true.B)
 
-  def trans(from: MooreNode[S], to: MooreNode[S], trigger: Bool): MooreEventHandle[S] =
-    addEvent(from, to, trigger)
+  def trans(from: MooreNode[S], to: MooreNode[S], trigger: Bool): MooreEventHandle[S] = addEvent(from, to, trigger)
 
-  def action(at: MooreNode[S], trigger: Bool = true.B): MooreEventHandle[S] =
-    addEvent(at, at, trigger)
+  def action(at: MooreNode[S], trigger: Bool = true.B): MooreEventHandle[S] = addEvent(at, at, trigger)
 
   private[fsm] def finish(): MooreGraph[S] = {
     require(nodes.nonEmpty, "Moore requires at least one state")
@@ -138,10 +135,8 @@ final class MooreBuilder[S <: Data] private[fsm] (
     val priorHits = hits.scanLeft(false.B)(_ || _).dropRight(1)
     val fires     = hits.zip(priorHits).map { case (hit, prior) => hit && !prior }
 
-    val nextPairs: Seq[(Bool, S)] =
-      eventSeq.zip(fires).map { case (event, fire) => fire -> event.to.value }
-
-    val next = MuxCase(stateReg, nextPairs)
+    val nextPairs: Seq[(Bool, S)] = eventSeq.zip(fires).map { case (event, fire) => fire -> event.to.value }
+    val next                      = MuxCase(stateReg, nextPairs)
 
     when(clear) {
       stateReg := start
