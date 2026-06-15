@@ -71,6 +71,8 @@ final class MooreBuilder[S <: Data] private[fsm] (
   private val events = ArrayBuffer[MooreEvent[S]]()
   private var order  = 0
 
+  private type Edge = (MooreNode[S], MooreNode[S])
+
   private def nextOrder(): Int = {
     val value = order
     order += 1
@@ -114,11 +116,20 @@ final class MooreBuilder[S <: Data] private[fsm] (
     new MooreEventHandle(event)
   }
 
-  def trans(from: MooreNode[S], to: MooreNode[S]): MooreEventHandle[S] = addEvent(from, to, true.B)
+  def trans(edge: Edge): MooreEventHandle[S] =
+    addEvent(edge._1, edge._2, true.B)
 
-  def trans(from: MooreNode[S], to: MooreNode[S], trigger: Bool): MooreEventHandle[S] = addEvent(from, to, trigger)
+  def trans(edge: Edge, trigger: Bool): MooreEventHandle[S] =
+    addEvent(edge._1, edge._2, trigger)
 
-  def action(at: MooreNode[S], trigger: Bool = true.B): MooreEventHandle[S] = addEvent(at, at, trigger)
+  def trans(from: MooreNode[S], to: MooreNode[S]): MooreEventHandle[S] =
+    trans(from -> to)
+
+  def trans(from: MooreNode[S], to: MooreNode[S], trigger: Bool): MooreEventHandle[S] =
+    trans(from -> to, trigger)
+
+  def action(at: MooreNode[S], trigger: Bool = true.B): MooreEventHandle[S] =
+    addEvent(at, at, trigger)
 
   private[fsm] def finish(): MooreGraph[S] = {
     require(nodes.nonEmpty, "Moore requires at least one state")
