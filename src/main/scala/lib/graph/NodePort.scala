@@ -2,6 +2,7 @@ package vutils.graph
 
 import chisel3._
 import chisel3.util.{ Decoupled, DecoupledIO, Valid, ValidIO }
+import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 sealed trait NodePortRole {
@@ -56,12 +57,78 @@ object NodePortProtocol {
     }
 }
 
-final class NodeLanes[Lane <: Data] private[vutils] (
-  private[vutils] val raw: Vec[Lane]
+final class NodeDataLanes[Lane <: Data] private[vutils] (
+  private[vutils] val vec: Vec[Lane]
 ) {
-  def lanes: Vec[Lane]       = raw
-  def apply(idx: Int): Lane  = raw(idx)
-  def apply(idx: UInt): Lane = raw(idx)
+  def apply(idx: Int): Lane  = vec(idx)
+  def apply(idx: UInt): Lane = vec(idx)
+  def length: Int            = vec.length
+  def raw: Vec[Lane]         = vec
+}
+
+object NodeDataLanes {
+  implicit def toVec[Lane <: Data](lanes: NodeDataLanes[Lane]): Vec[Lane] =
+    lanes.vec
+}
+
+final class NodeRawLanes[Lane <: Data] private[vutils] (
+  private[vutils] val vec: Vec[Lane]
+) {
+  val lanes: NodeDataLanes[Lane] = new NodeDataLanes(vec)
+
+  def apply(idx: Int): Lane  = vec(idx)
+  def apply(idx: UInt): Lane = vec(idx)
+  def length: Int            = vec.length
+  def raw: Vec[Lane]         = vec
+}
+
+object NodeRawLanes {
+  implicit def toVec[Lane <: Data](lanes: NodeRawLanes[Lane]): Vec[Lane] =
+    lanes.vec
+}
+
+final class NodeInLanes[C, Lane <: Data] private[vutils] (
+  owner: Node[C],
+  name: String,
+  protocol: NodePortProtocol,
+  fullName: String,
+  private[vutils] val vec: Vec[Lane]
+) {
+  def apply(idx: Int): NodeInLane[C, Lane] = {
+    require(idx >= 0 && idx < vec.length, s"NodeInVec '$fullName' lane index $idx out of range 0..${vec.length - 1}")
+    new NodeInLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, vec(idx))
+  }
+
+  def apply(idx: UInt): Lane = vec(idx)
+  def length: Int            = vec.length
+  def raw: Vec[Lane]         = vec
+}
+
+object NodeInLanes {
+  implicit def toVec[C, Lane <: Data](lanes: NodeInLanes[C, Lane]): Vec[Lane] =
+    lanes.vec
+}
+
+final class NodeOutLanes[C, Lane <: Data] private[vutils] (
+  owner: Node[C],
+  name: String,
+  protocol: NodePortProtocol,
+  fullName: String,
+  private[vutils] val vec: Vec[Lane]
+) {
+  def apply(idx: Int): NodeOutLane[C, Lane] = {
+    require(idx >= 0 && idx < vec.length, s"NodeOutVec '$fullName' lane index $idx out of range 0..${vec.length - 1}")
+    new NodeOutLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, vec(idx))
+  }
+
+  def apply(idx: UInt): Lane = vec(idx)
+  def length: Int            = vec.length
+  def raw: Vec[Lane]         = vec
+}
+
+object NodeOutLanes {
+  implicit def toVec[C, Lane <: Data](lanes: NodeOutLanes[C, Lane]): Vec[Lane] =
+    lanes.vec
 }
 
 sealed trait NodePort[C, PortData <: Data] {
@@ -144,26 +211,13 @@ final class NodeInVec[C, Lane <: Data] private[vutils] (
   override val role: NodePortRole              = NodePortRole.Sink
   override private[vutils] val data: Vec[Lane] = raw
 
-  val in: NodeLanes[Lane] = new NodeLanes(raw)
+  val in: NodeRawLanes[Lane]      = new NodeRawLanes(raw)
+  val lanes: NodeInLanes[C, Lane] = new NodeInLanes(owner, name, protocol, fullName, raw)
 
-  def lanes: Vec[Lane] = raw
-
-  def lane(idx: Int): NodeInLane[C, Lane] = {
-    require(idx >= 0 && idx < raw.length, s"NodeInVec '$fullName' lane index $idx out of range 0..${raw.length - 1}")
-    new NodeInLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
-  }
-
-  def lanes(idx: Int): NodeInLane[C, Lane] =
-    lane(idx)
-
-  def lanes(idx: UInt): Lane =
-    raw(idx)
-
-  def apply(idx: Int): NodeInLane[C, Lane] =
-    lane(idx)
-
-  def apply(idx: UInt): Lane =
-    raw(idx)
+  def vec: Vec[Lane]                       = raw
+  def lane(idx: Int): NodeInLane[C, Lane]  = lanes(idx)
+  def apply(idx: Int): NodeInLane[C, Lane] = lanes(idx)
+  def apply(idx: UInt): Lane               = raw(idx)
 
   raw.suggestName(name)
 }
@@ -177,26 +231,13 @@ final class NodeOutVec[C, Lane <: Data] private[vutils] (
   override val role: NodePortRole              = NodePortRole.Source
   override private[vutils] val data: Vec[Lane] = raw
 
-  val out: NodeLanes[Lane] = new NodeLanes(raw)
+  val out: NodeRawLanes[Lane]      = new NodeRawLanes(raw)
+  val lanes: NodeOutLanes[C, Lane] = new NodeOutLanes(owner, name, protocol, fullName, raw)
 
-  def lanes: Vec[Lane] = raw
-
-  def lane(idx: Int): NodeOutLane[C, Lane] = {
-    require(idx >= 0 && idx < raw.length, s"NodeOutVec '$fullName' lane index $idx out of range 0..${raw.length - 1}")
-    new NodeOutLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
-  }
-
-  def lanes(idx: Int): NodeOutLane[C, Lane] =
-    lane(idx)
-
-  def lanes(idx: UInt): Lane =
-    raw(idx)
-
-  def apply(idx: Int): NodeOutLane[C, Lane] =
-    lane(idx)
-
-  def apply(idx: UInt): Lane =
-    raw(idx)
+  def vec: Vec[Lane]                        = raw
+  def lane(idx: Int): NodeOutLane[C, Lane]  = lanes(idx)
+  def apply(idx: Int): NodeOutLane[C, Lane] = lanes(idx)
+  def apply(idx: UInt): Lane                = raw(idx)
 
   raw.suggestName(name)
 }
