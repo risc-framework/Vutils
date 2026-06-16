@@ -59,11 +59,9 @@ object NodePortProtocol {
 final class NodeLanes[Lane <: Data] private[vutils] (
   private[vutils] val raw: Vec[Lane]
 ) {
-  def lanes(idx: Int): Lane =
-    raw(idx)
-
-  def lanes(idx: UInt): Lane =
-    raw(idx)
+  def lanes: Vec[Lane]       = raw
+  def apply(idx: Int): Lane  = raw(idx)
+  def apply(idx: UInt): Lane = raw(idx)
 }
 
 sealed trait NodePort[C, PortData <: Data] {
@@ -148,13 +146,12 @@ final class NodeInVec[C, Lane <: Data] private[vutils] (
 
   val in: NodeLanes[Lane] = new NodeLanes(raw)
 
+  def lanes: Vec[Lane] = raw
+
   def lane(idx: Int): NodeInLane[C, Lane] = {
     require(idx >= 0 && idx < raw.length, s"NodeInVec '$fullName' lane index $idx out of range 0..${raw.length - 1}")
     new NodeInLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
   }
-
-  def lanes(idx: Int): NodeInLane[C, Lane] =
-    lane(idx)
 
   raw.suggestName(name)
 }
@@ -170,13 +167,12 @@ final class NodeOutVec[C, Lane <: Data] private[vutils] (
 
   val out: NodeLanes[Lane] = new NodeLanes(raw)
 
+  def lanes: Vec[Lane] = raw
+
   def lane(idx: Int): NodeOutLane[C, Lane] = {
     require(idx >= 0 && idx < raw.length, s"NodeOutVec '$fullName' lane index $idx out of range 0..${raw.length - 1}")
     new NodeOutLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
   }
-
-  def lanes(idx: Int): NodeOutLane[C, Lane] =
-    lane(idx)
 
   raw.suggestName(name)
 }
