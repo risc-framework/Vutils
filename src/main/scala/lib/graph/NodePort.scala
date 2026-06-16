@@ -153,6 +153,18 @@ final class NodeInVec[C, Lane <: Data] private[vutils] (
     new NodeInLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
   }
 
+  def lanes(idx: Int): NodeInLane[C, Lane] =
+    lane(idx)
+
+  def lanes(idx: UInt): Lane =
+    raw(idx)
+
+  def apply(idx: Int): NodeInLane[C, Lane] =
+    lane(idx)
+
+  def apply(idx: UInt): Lane =
+    raw(idx)
+
   raw.suggestName(name)
 }
 
@@ -173,6 +185,18 @@ final class NodeOutVec[C, Lane <: Data] private[vutils] (
     require(idx >= 0 && idx < raw.length, s"NodeOutVec '$fullName' lane index $idx out of range 0..${raw.length - 1}")
     new NodeOutLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, raw(idx))
   }
+
+  def lanes(idx: Int): NodeOutLane[C, Lane] =
+    lane(idx)
+
+  def lanes(idx: UInt): Lane =
+    raw(idx)
+
+  def apply(idx: Int): NodeOutLane[C, Lane] =
+    lane(idx)
+
+  def apply(idx: UInt): Lane =
+    raw(idx)
 
   raw.suggestName(name)
 }
