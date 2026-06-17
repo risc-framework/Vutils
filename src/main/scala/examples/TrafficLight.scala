@@ -27,9 +27,9 @@ class TrafficLight extends Module with Moore {
     val Green  = state(TraficLightColor.Green)
     val Yellow = state(TraficLightColor.Yellow)
 
-    trans(Red    -> Green, io.step)
-    trans(Green  -> Yellow, io.step)
-    trans(Yellow -> Red, io.step)
+    trans(Red    -> Green, trigger = io.step)
+    trans(Green  -> Yellow, trigger = io.step)
+    trans(Yellow -> Red, trigger = io.step)
   }
 
   io.red       := fsm(TraficLightColor.Red).active

@@ -42,16 +42,16 @@ class TreePipe extends Module with ElasticGraphSyntax {
     val C  = stage(TreeNode.C)
     val D  = stage(TreeNode.D)
 
-    source(io.in, A)
+    source(io.in -> A)
 
-    connect(A, B1, trigger = A.bits.sel === 0.U)
-    connect(A, B2, trigger = A.bits.sel === 1.U)
+    connect(A -> B1, trigger = A.bits.sel === 0.U)
+    connect(A -> B2, trigger = A.bits.sel === 1.U)
 
-    connect(B1, C)
-    connect(B2, D)
+    connect(B1 -> C)
+    connect(B2 -> D)
 
-    sink(C, io.outC)
-    sink(D, io.outD)
+    sink(C -> io.outC)
+    sink(D -> io.outD)
   }
 
   io.aValid  := p(TreeNode.A).valid

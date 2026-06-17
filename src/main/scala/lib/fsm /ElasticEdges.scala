@@ -3,7 +3,7 @@ package vutils.fsm
 import chisel3._
 import chisel3.util.DecoupledIO
 
-private[fsm] final class ElasticSourceEdge[T <: Data, N <: Data](
+final private[fsm] class ElasticSourceEdge[T <: Data, N <: Data](
   val in: DecoupledIO[T],
   val to: ElasticStage[T, N],
   val trigger: Bool,
@@ -17,7 +17,7 @@ private[fsm] final class ElasticSourceEdge[T <: Data, N <: Data](
   }
 }
 
-private[fsm] final class ElasticStageEdge[T <: Data, N <: Data](
+final private[fsm] class ElasticStageEdge[T <: Data, N <: Data](
   val from: ElasticStage[T, N],
   val to: ElasticStage[T, N],
   val trigger: Bool,
@@ -45,7 +45,7 @@ private[fsm] trait ElasticRequestEdgeLike[T <: Data, N <: Data] {
   def assignBits(out: T): Unit
 }
 
-private[fsm] final class ElasticRequestEdge[T <: Data, N <: Data, R <: Data](
+final private[fsm] class ElasticRequestEdge[T <: Data, N <: Data, R <: Data](
   val from: ElasticStage[T, N],
   val req: DecoupledIO[R],
   val to: ElasticStage[T, N],
@@ -58,8 +58,8 @@ private[fsm] final class ElasticRequestEdge[T <: Data, N <: Data, R <: Data](
   def reqReady: Bool = req.ready
 
   def init(): Unit = {
-    req.valid := false.B
-    req.bits := 0.U.asTypeOf(req.bits)
+    req.valid     := false.B
+    req.bits      := 0.U.asTypeOf(req.bits)
     move.fireWire := false.B
   }
 
@@ -69,7 +69,7 @@ private[fsm] final class ElasticRequestEdge[T <: Data, N <: Data, R <: Data](
     reqMapFn(bits)
 
     req.valid := active && selected && canAcceptTo
-    req.bits := bits
+    req.bits  := bits
 
     val fire = req.valid && req.ready
 
@@ -99,7 +99,7 @@ private[fsm] trait ElasticResponseEdgeLike[T <: Data, N <: Data] {
   def assignBits(out: T): Unit
 }
 
-private[fsm] final class ElasticResponseEdge[T <: Data, N <: Data, R <: Data](
+final private[fsm] class ElasticResponseEdge[T <: Data, N <: Data, R <: Data](
   val from: ElasticStage[T, N],
   val resp: DecoupledIO[R],
   val to: ElasticStage[T, N],
@@ -112,9 +112,9 @@ private[fsm] final class ElasticResponseEdge[T <: Data, N <: Data, R <: Data](
   def respValid: Bool = resp.valid
 
   def init(): Unit = {
-    resp.ready := false.B
+    resp.ready    := false.B
     move.fireWire := false.B
-    wantWire := false.B
+    wantWire      := false.B
   }
 
   def driveNonMerge(active: Bool, selected: Bool, canAcceptTo: Bool): Bool = {
@@ -126,14 +126,13 @@ private[fsm] final class ElasticResponseEdge[T <: Data, N <: Data, R <: Data](
     fire
   }
 
-  def driveWant(active: Bool, selected: Bool): Unit = {
+  def driveWant(active: Bool, selected: Bool): Unit =
     wantWire := active && selected && resp.valid
-  }
 
   def driveMerge(canAcceptTo: Bool, priorCandidate: Bool): Bool = {
     val fire = wantWire && canAcceptTo && !priorCandidate
 
-    resp.ready := fire
+    resp.ready    := fire
     move.fireWire := fire
 
     fire
@@ -156,7 +155,7 @@ private[fsm] trait ElasticSinkEdgeLike[T <: Data, N <: Data] {
   def drive(active: Bool, selected: Bool): Bool
 }
 
-private[fsm] final class ElasticSinkEdge[T <: Data, N <: Data, R <: Data](
+final private[fsm] class ElasticSinkEdge[T <: Data, N <: Data, R <: Data](
   val from: ElasticStage[T, N],
   val out: DecoupledIO[R],
   val trigger: Bool,
@@ -167,8 +166,8 @@ private[fsm] final class ElasticSinkEdge[T <: Data, N <: Data, R <: Data](
   def ready: Bool = out.ready
 
   def init(): Unit = {
-    out.valid := false.B
-    out.bits := 0.U.asTypeOf(out.bits)
+    out.valid     := false.B
+    out.bits      := 0.U.asTypeOf(out.bits)
     move.fireWire := false.B
   }
 
@@ -178,7 +177,7 @@ private[fsm] final class ElasticSinkEdge[T <: Data, N <: Data, R <: Data](
     mapFn(bits)
 
     out.valid := active && selected
-    out.bits := bits
+    out.bits  := bits
 
     val fire = out.valid && out.ready
 

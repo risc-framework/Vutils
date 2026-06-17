@@ -24,9 +24,11 @@ class ElasticLineExample extends Module with ElasticGraphSyntax {
     val A = stage(LinePipeNode.A)
     val B = stage(LinePipeNode.B)
 
-    source(io.in, A)
-    connect(A, B)
-    sink(B, io.out)
+    source(io.in -> A)
+
+    connect(A -> B)
+
+    sink(B -> io.out)
   }
 
   io.aValid := pipe(LinePipeNode.A).valid

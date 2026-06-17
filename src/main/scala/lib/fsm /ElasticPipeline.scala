@@ -305,10 +305,12 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
     reservedSlots(stage.id) = slots
   }
 
-  def source(in: DecoupledIO[T], to: ElasticStage[T, N], trigger: Bool = true.B): ElasticMove =
-    sourceMap(in, to, trigger)(_ => ())
+  def source(edge: (DecoupledIO[T], ElasticStage[T, N]), trigger: Bool = true.B): ElasticMove =
+    sourceMap(edge, trigger)(_ => ())
 
-  def sourceMap(in: DecoupledIO[T], to: ElasticStage[T, N], trigger: Bool = true.B)(body: T => Unit): ElasticMove = {
+  def sourceMap(edge: (DecoupledIO[T], ElasticStage[T, N]), trigger: Bool = true.B)(body: T => Unit): ElasticMove = {
+    val in   = edge._1
+    val to   = edge._2
     val fire = WireDefault(false.B)
     val move = new ElasticMove(s"source -> ${nodeName(to.node)}", fire)
 
@@ -325,10 +327,12 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
     move
   }
 
-  def connect(from: ElasticStage[T, N], to: ElasticStage[T, N], trigger: Bool = true.B): ElasticMove =
-    connectMap(from, to, trigger)(_ => ())
+  def connect(edge: (ElasticStage[T, N], ElasticStage[T, N]), trigger: Bool = true.B): ElasticMove =
+    connectMap(edge, trigger)(_ => ())
 
-  def connectMap(from: ElasticStage[T, N], to: ElasticStage[T, N], trigger: Bool = true.B)(body: T => Unit): ElasticMove = {
+  def connectMap(edge: (ElasticStage[T, N], ElasticStage[T, N]), trigger: Bool = true.B)(body: T => Unit): ElasticMove = {
+    val from = edge._1
+    val to   = edge._2
     val fire = WireDefault(false.B)
     val want = WireDefault(false.B)
     val move = new ElasticMove(s"${nodeName(from.node)} -> ${nodeName(to.node)}", fire)
@@ -348,25 +352,24 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
   }
 
   def request[R <: Data](
-    from: ElasticStage[T, N],
-    req: DecoupledIO[R],
-    wait: ElasticStage[T, N],
+    edge: ((ElasticStage[T, N], DecoupledIO[R]), ElasticStage[T, N]),
     trigger: Bool = true.B
   )(
     body: R => Unit
   ): ElasticMove =
-    requestMap(from, req, wait, trigger)(body)(_ => ())
+    requestMap(edge, trigger)(body)(_ => ())
 
   def requestMap[R <: Data](
-    from: ElasticStage[T, N],
-    req: DecoupledIO[R],
-    wait: ElasticStage[T, N],
+    edge: ((ElasticStage[T, N], DecoupledIO[R]), ElasticStage[T, N]),
     trigger: Bool = true.B
   )(
     reqBody: R => Unit
   )(
     waitBody: T => Unit
   ): ElasticMove = {
+    val from = edge._1._1
+    val req  = edge._1._2
+    val wait = edge._2
     val fire = WireDefault(false.B)
     val move = new ElasticMove(s"${nodeName(from.node)} -> request -> ${nodeName(wait.node)}", fire)
 
@@ -386,13 +389,14 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
   }
 
   def response[R <: Data](
-    wait: ElasticStage[T, N],
-    resp: DecoupledIO[R],
-    to: ElasticStage[T, N],
+    edge: ((ElasticStage[T, N], DecoupledIO[R]), ElasticStage[T, N]),
     trigger: Bool = true.B
   )(
     body: (T, R) => Unit
   ): ElasticMove = {
+    val wait = edge._1._1
+    val resp = edge._1._2
+    val to   = edge._2
     val fire = WireDefault(false.B)
     val want = WireDefault(false.B)
     val move = new ElasticMove(s"${nodeName(wait.node)} -> response -> ${nodeName(to.node)}", fire)
@@ -412,10 +416,12 @@ final class ElasticGraphBuilder[T <: Data, N <: Data] private[fsm] (
     move
   }
 
-  def sink(from: ElasticStage[T, N], out: DecoupledIO[T], trigger: Bool = true.B): ElasticMove =
-    sinkMap(from, out, trigger)(bits => bits := from.bits)
+  def sink(edge: (ElasticStage[T, N], DecoupledIO[T]), trigger: Bool = true.B): ElasticMove =
+    sinkMap(edge, trigger)(bits => bits := edge._1.bits)
 
-  def sinkMap[R <: Data](from: ElasticStage[T, N], out: DecoupledIO[R], trigger: Bool = true.B)(body: R => Unit): ElasticMove = {
+  def sinkMap[R <: Data](edge: (ElasticStage[T, N], DecoupledIO[R]), trigger: Bool = true.B)(body: R => Unit): ElasticMove = {
+    val from = edge._1
+    val out  = edge._2
     val fire = WireDefault(false.B)
     val move = new ElasticMove(s"${nodeName(from.node)} -> sink", fire)
 

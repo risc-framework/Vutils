@@ -24,10 +24,12 @@ class ElasticQueueExample extends Module with ElasticGraphSyntax {
     val Q = queue(QueuePipeNode.Q, depth = 4)
     val B = stage(QueuePipeNode.B)
 
-    source(io.in, A)
-    connect(A, Q)
-    connect(Q, B)
-    sink(B, io.out)
+    source(io.in -> A)
+
+    connect(A -> Q)
+    connect(Q -> B)
+
+    sink(B -> io.out)
   }
 
   io.qCount := pipe(QueuePipeNode.Q).count

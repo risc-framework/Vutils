@@ -24,11 +24,12 @@ class ElasticMergeExample extends Module with ElasticGraphSyntax {
     val M = merge(MergePipeNode.M, depth = 4)
     val B = stage(MergePipeNode.B)
 
-    source(io.in0, M)
-    source(io.in1, M)
+    source(io.in0 -> M)
+    source(io.in1 -> M)
 
-    connect(M, B)
-    sink(B, io.out)
+    connect(M -> B)
+
+    sink(B -> io.out)
   }
 
   io.mCount := pipe(MergePipeNode.M).count
