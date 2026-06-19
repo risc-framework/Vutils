@@ -31,14 +31,10 @@ private object NodeConnectionWarning {
   private def leavesOf(data: Data, prefix: String = ""): Seq[Leaf] =
     data match {
       case record: Record =>
-        record.elements.toSeq.flatMap { case (field, child) =>
-          leavesOf(child, fieldPath(prefix, field))
-        }
+        record.elements.toSeq.flatMap { case (field, child) => leavesOf(child, fieldPath(prefix, field)) }
 
       case vec: Vec[_] =>
-        (0 until vec.length).flatMap { i =>
-          leavesOf(vec(i).asInstanceOf[Data], indexPath(prefix, i))
-        }
+        (0 until vec.length).flatMap(i => leavesOf(vec(i).asInstanceOf[Data], indexPath(prefix, i)))
 
       case leaf =>
         Seq(Leaf(prefix, leaf, widthOf(leaf)))
@@ -47,12 +43,7 @@ private object NodeConnectionWarning {
   private def warn(message: String): Unit =
     Console.err.println(s"[vutils.graph][warn] $message")
 
-  private def warnMissing(
-    context: String,
-    ownerName: String,
-    peerName: String,
-    ownerOnly: Seq[Leaf]
-  ): Unit =
+  private def warnMissing(context: String, ownerName: String, peerName: String, ownerOnly: Seq[Leaf]): Unit =
     if (ownerOnly.nonEmpty) {
       warn(
         s"$context: '$ownerName' has ${ownerOnly.length} leaf signal(s) with no peer in '$peerName': " +
@@ -60,12 +51,7 @@ private object NodeConnectionWarning {
       )
     }
 
-  private def warnWidthMismatch(
-    context: String,
-    leftName: String,
-    rightName: String,
-    mismatches: Seq[(Leaf, Leaf)]
-  ): Unit =
+  private def warnWidthMismatch(context: String, leftName: String, rightName: String, mismatches: Seq[(Leaf, Leaf)]): Unit =
     if (mismatches.nonEmpty) {
       warn(
         s"$context: width mismatch between '$leftName' and '$rightName': " +
@@ -80,13 +66,7 @@ private object NodeConnectionWarning {
       )
     }
 
-  def check(
-    context: String,
-    leftName: String,
-    leftData: Data,
-    rightName: String,
-    rightData: Data
-  ): Unit = {
+  def check(context: String, leftName: String, leftData: Data, rightName: String, rightData: Data): Unit = {
     val leftLeaves  = leavesOf(leftData)
     val rightLeaves = leavesOf(rightData)
     val leftMap     = leftLeaves.map(leaf => leaf.path -> leaf).toMap
@@ -133,6 +113,31 @@ final case class NodeEdge[C, PortData <: Data](
     )
 
     sink.data <> source.data
+  }
+}
+
+final case class NodeRawEdge[C, PortData <: Data](
+  left: NodeRawPort[C, PortData],
+  right: NodeRawPort[C, PortData]
+) extends NodeConnection[C] {
+  require(
+    left.protocol == right.protocol,
+    s"NodeRawEdge: cannot connect '${left.fullName}' to '${right.fullName}': protocol mismatch ${left.protocol.name} != ${right.protocol.name}"
+  )
+
+  override private[vutils] def ports: Seq[NodePort[C, _ <: Data]] =
+    Seq(left, right)
+
+  override private[vutils] def connect(): Unit = {
+    NodeConnectionWarning.check(
+      context = "NodeRawEdge",
+      leftName = left.fullName,
+      leftData = left.data,
+      rightName = right.fullName,
+      rightData = right.data
+    )
+
+    right.data <> left.data
   }
 }
 

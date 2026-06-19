@@ -2,7 +2,8 @@ package vutils.graph
 
 import chisel3._
 import chisel3.util.{ DecoupledIO, ValidIO }
-import scala.collection.mutable
+import sourcecode.Name
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 abstract class Node[C](
@@ -13,9 +14,9 @@ abstract class Node[C](
 
   final def nodeType: NodeType = NodeType(nodeName)
 
-  private val registeredPorts       = mutable.ArrayBuffer.empty[NodePort[C, _ <: Data]]
-  private val registeredSubnodes    = mutable.ArrayBuffer.empty[Node[C]]
-  private val registeredConnections = mutable.ArrayBuffer.empty[NodeConnection[C]]
+  private val registeredPorts       = ArrayBuffer.empty[NodePort[C, _ <: Data]]
+  private val registeredSubnodes    = ArrayBuffer.empty[Node[C]]
+  private val registeredConnections = ArrayBuffer.empty[NodeConnection[C]]
 
   override def desiredName: String =
     s"${nodeName}_${cfg.selector.canonicalName}"
@@ -33,76 +34,82 @@ abstract class Node[C](
     port
   }
 
-  final protected def in[P <: Data: ClassTag](implicit name: sourcecode.Name): NodeIn[C, P] =
+  final protected def raw[P <: Data: ClassTag](implicit name: Name): NodeRaw[C, P] =
+    register(NodePort.raw[C, P](this, normalizeName(name.value)))
+
+  final protected def rawWith[P <: Data](payload: C => P)(implicit name: Name): NodeRaw[C, P] =
+    register(NodePort.rawWith[C, P](this, normalizeName(name.value))(payload))
+
+  final protected def in[P <: Data: ClassTag](implicit name: Name): NodeIn[C, P] =
     register(NodePort.input[C, P](this, normalizeName(name.value)))
 
-  final protected def out[P <: Data: ClassTag](implicit name: sourcecode.Name): NodeOut[C, P] =
+  final protected def out[P <: Data: ClassTag](implicit name: Name): NodeOut[C, P] =
     register(NodePort.output[C, P](this, normalizeName(name.value)))
 
-  final protected def inWith[P <: Data](payload: C => P)(implicit name: sourcecode.Name): NodeIn[C, P] =
+  final protected def inWith[P <: Data](payload: C => P)(implicit name: Name): NodeIn[C, P] =
     register(NodePort.inputWith[C, P](this, normalizeName(name.value))(payload))
 
-  final protected def outWith[P <: Data](payload: C => P)(implicit name: sourcecode.Name): NodeOut[C, P] =
+  final protected def outWith[P <: Data](payload: C => P)(implicit name: Name): NodeOut[C, P] =
     register(NodePort.outputWith[C, P](this, normalizeName(name.value))(payload))
 
-  final protected def inV[P <: Data: ClassTag](implicit name: sourcecode.Name): NodeIn[C, ValidIO[P]] =
+  final protected def inV[P <: Data: ClassTag](implicit name: Name): NodeIn[C, ValidIO[P]] =
     register(NodePort.validInput[C, P](this, normalizeName(name.value)))
 
-  final protected def outV[P <: Data: ClassTag](implicit name: sourcecode.Name): NodeOut[C, ValidIO[P]] =
+  final protected def outV[P <: Data: ClassTag](implicit name: Name): NodeOut[C, ValidIO[P]] =
     register(NodePort.validOutput[C, P](this, normalizeName(name.value)))
 
-  final protected def inVWith[P <: Data](payload: C => P)(implicit name: sourcecode.Name): NodeIn[C, ValidIO[P]] =
+  final protected def inVWith[P <: Data](payload: C => P)(implicit name: Name): NodeIn[C, ValidIO[P]] =
     register(NodePort.validInputWith[C, P](this, normalizeName(name.value))(payload))
 
-  final protected def outVWith[P <: Data](payload: C => P)(implicit name: sourcecode.Name): NodeOut[C, ValidIO[P]] =
+  final protected def outVWith[P <: Data](payload: C => P)(implicit name: Name): NodeOut[C, ValidIO[P]] =
     register(NodePort.validOutputWith[C, P](this, normalizeName(name.value))(payload))
 
-  final protected def inD[P <: Data: ClassTag](implicit name: sourcecode.Name): NodeIn[C, DecoupledIO[P]] =
+  final protected def inD[P <: Data: ClassTag](implicit name: Name): NodeIn[C, DecoupledIO[P]] =
     register(NodePort.decoupledInput[C, P](this, normalizeName(name.value)))
 
-  final protected def outD[P <: Data: ClassTag](implicit name: sourcecode.Name): NodeOut[C, DecoupledIO[P]] =
+  final protected def outD[P <: Data: ClassTag](implicit name: Name): NodeOut[C, DecoupledIO[P]] =
     register(NodePort.decoupledOutput[C, P](this, normalizeName(name.value)))
 
-  final protected def inDWith[P <: Data](payload: C => P)(implicit name: sourcecode.Name): NodeIn[C, DecoupledIO[P]] =
+  final protected def inDWith[P <: Data](payload: C => P)(implicit name: Name): NodeIn[C, DecoupledIO[P]] =
     register(NodePort.decoupledInputWith[C, P](this, normalizeName(name.value))(payload))
 
-  final protected def outDWith[P <: Data](payload: C => P)(implicit name: sourcecode.Name): NodeOut[C, DecoupledIO[P]] =
+  final protected def outDWith[P <: Data](payload: C => P)(implicit name: Name): NodeOut[C, DecoupledIO[P]] =
     register(NodePort.decoupledOutputWith[C, P](this, normalizeName(name.value))(payload))
 
-  final protected def inVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: sourcecode.Name): NodeInVec[C, P] =
+  final protected def inVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: Name): NodeInVec[C, P] =
     register(NodePort.vecInput[C, P](this, normalizeName(name.value), lanes))
 
-  final protected def outVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: sourcecode.Name): NodeOutVec[C, P] =
+  final protected def outVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: Name): NodeOutVec[C, P] =
     register(NodePort.vecOutput[C, P](this, normalizeName(name.value), lanes))
 
-  final protected def inVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: sourcecode.Name): NodeInVec[C, P] =
+  final protected def inVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: Name): NodeInVec[C, P] =
     register(NodePort.vecInputWith[C, P](this, normalizeName(name.value), lanes)(payload))
 
-  final protected def outVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: sourcecode.Name): NodeOutVec[C, P] =
+  final protected def outVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: Name): NodeOutVec[C, P] =
     register(NodePort.vecOutputWith[C, P](this, normalizeName(name.value), lanes)(payload))
 
-  final protected def inVVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: sourcecode.Name): NodeInVec[C, ValidIO[P]] =
+  final protected def inVVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: Name): NodeInVec[C, ValidIO[P]] =
     register(NodePort.validVecInput[C, P](this, normalizeName(name.value), lanes))
 
-  final protected def outVVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: sourcecode.Name): NodeOutVec[C, ValidIO[P]] =
+  final protected def outVVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: Name): NodeOutVec[C, ValidIO[P]] =
     register(NodePort.validVecOutput[C, P](this, normalizeName(name.value), lanes))
 
-  final protected def inVVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: sourcecode.Name): NodeInVec[C, ValidIO[P]] =
+  final protected def inVVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: Name): NodeInVec[C, ValidIO[P]] =
     register(NodePort.validVecInputWith[C, P](this, normalizeName(name.value), lanes)(payload))
 
-  final protected def outVVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: sourcecode.Name): NodeOutVec[C, ValidIO[P]] =
+  final protected def outVVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: Name): NodeOutVec[C, ValidIO[P]] =
     register(NodePort.validVecOutputWith[C, P](this, normalizeName(name.value), lanes)(payload))
 
-  final protected def inDVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: sourcecode.Name): NodeInVec[C, DecoupledIO[P]] =
+  final protected def inDVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: Name): NodeInVec[C, DecoupledIO[P]] =
     register(NodePort.decoupledVecInput[C, P](this, normalizeName(name.value), lanes))
 
-  final protected def outDVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: sourcecode.Name): NodeOutVec[C, DecoupledIO[P]] =
+  final protected def outDVec[P <: Data: ClassTag](lanes: C => Int)(implicit name: Name): NodeOutVec[C, DecoupledIO[P]] =
     register(NodePort.decoupledVecOutput[C, P](this, normalizeName(name.value), lanes))
 
-  final protected def inDVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: sourcecode.Name): NodeInVec[C, DecoupledIO[P]] =
+  final protected def inDVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: Name): NodeInVec[C, DecoupledIO[P]] =
     register(NodePort.decoupledVecInputWith[C, P](this, normalizeName(name.value), lanes)(payload))
 
-  final protected def outDVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: sourcecode.Name): NodeOutVec[C, DecoupledIO[P]] =
+  final protected def outDVecWith[P <: Data](lanes: C => Int)(payload: C => P)(implicit name: Name): NodeOutVec[C, DecoupledIO[P]] =
     register(NodePort.decoupledVecOutputWith[C, P](this, normalizeName(name.value), lanes)(payload))
 
   final protected def subnode[N <: Node[C]](gen: => N): N = {

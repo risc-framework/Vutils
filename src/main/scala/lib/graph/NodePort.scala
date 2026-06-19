@@ -17,6 +17,10 @@ object NodePortRole {
   case object Sink extends NodePortRole {
     override def name: String = "sink"
   }
+
+  case object Raw extends NodePortRole {
+    override def name: String = "raw"
+  }
 }
 
 sealed trait NodePortProtocol {
@@ -156,6 +160,23 @@ sealed trait NodeOutputPort[C, PortData <: Data] extends NodePort[C, PortData] {
     NodeExpose(this, peer)
 }
 
+sealed trait NodeRawPort[C, PortData <: Data] extends NodePort[C, PortData] {
+  final def ->(peer: NodeRawPort[C, PortData]): NodeRawEdge[C, PortData] =
+    NodeRawEdge(this, peer)
+}
+
+final class NodeRaw[C, PortData <: Data] private[vutils] (
+  val owner: Node[C],
+  val name: String,
+  val protocol: NodePortProtocol,
+  val io: PortData
+) extends NodeRawPort[C, PortData] {
+  override val role: NodePortRole             = NodePortRole.Raw
+  override private[vutils] val data: PortData = io
+
+  io.suggestName(name)
+}
+
 final class NodeIn[C, PortData <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
@@ -243,6 +264,12 @@ final class NodeOutVec[C, Lane <: Data] private[vutils] (
 }
 
 object NodePort {
+  def raw[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeRaw[C, P] =
+    rawWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+
+  def rawWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeRaw[C, P] =
+    new NodeRaw(owner, name, NodePortProtocol.Raw, IO(payload(ctx)))
+
   def input[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeIn[C, P] =
     inputWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
 
