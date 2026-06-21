@@ -61,34 +61,130 @@ object NodePortProtocol {
     }
 }
 
+private[vutils] object NodePortDefault {
+  def localSource(protocol: NodePortProtocol, data: Data): Unit =
+    protocol match {
+      case NodePortProtocol.Raw =>
+        data := 0.U.asTypeOf(data)
+
+      case NodePortProtocol.Valid =>
+        val v = data.asInstanceOf[ValidIO[Data]]
+        v.valid := false.B
+        v.bits  := DontCare
+
+      case NodePortProtocol.Decoupled =>
+        val d = data.asInstanceOf[DecoupledIO[Data]]
+        d.valid := false.B
+        d.bits  := DontCare
+
+      case NodePortProtocol.RawVec =>
+        data := 0.U.asTypeOf(data)
+
+      case NodePortProtocol.ValidVec =>
+        val v = data.asInstanceOf[Vec[ValidIO[Data]]]
+        for (i <- 0 until v.length) {
+          v(i).valid := false.B
+          v(i).bits  := DontCare
+        }
+
+      case NodePortProtocol.DecoupledVec =>
+        val d = data.asInstanceOf[Vec[DecoupledIO[Data]]]
+        for (i <- 0 until d.length) {
+          d(i).valid := false.B
+          d(i).bits  := DontCare
+        }
+    }
+
+  def localSink(protocol: NodePortProtocol, data: Data): Unit =
+    protocol match {
+      case NodePortProtocol.Decoupled =>
+        val d = data.asInstanceOf[DecoupledIO[Data]]
+        d.ready := false.B
+
+      case NodePortProtocol.DecoupledVec =>
+        val d = data.asInstanceOf[Vec[DecoupledIO[Data]]]
+        for (i <- 0 until d.length)
+          d(i).ready := false.B
+
+      case _ =>
+    }
+
+  def parentDriveSink(protocol: NodePortProtocol, data: Data): Unit =
+    protocol match {
+      case NodePortProtocol.Raw =>
+        data := 0.U.asTypeOf(data)
+
+      case NodePortProtocol.Valid =>
+        val v = data.asInstanceOf[ValidIO[Data]]
+        v.valid := false.B
+        v.bits  := DontCare
+
+      case NodePortProtocol.Decoupled =>
+        val d = data.asInstanceOf[DecoupledIO[Data]]
+        d.valid := false.B
+        d.bits  := DontCare
+
+      case NodePortProtocol.RawVec =>
+        data := 0.U.asTypeOf(data)
+
+      case NodePortProtocol.ValidVec =>
+        val v = data.asInstanceOf[Vec[ValidIO[Data]]]
+        for (i <- 0 until v.length) {
+          v(i).valid := false.B
+          v(i).bits  := DontCare
+        }
+
+      case NodePortProtocol.DecoupledVec =>
+        val d = data.asInstanceOf[Vec[DecoupledIO[Data]]]
+        for (i <- 0 until d.length) {
+          d(i).valid := false.B
+          d(i).bits  := DontCare
+        }
+    }
+
+  def parentDriveSource(protocol: NodePortProtocol, data: Data): Unit =
+    protocol match {
+      case NodePortProtocol.Decoupled =>
+        val d = data.asInstanceOf[DecoupledIO[Data]]
+        d.ready := false.B
+
+      case NodePortProtocol.DecoupledVec =>
+        val d = data.asInstanceOf[Vec[DecoupledIO[Data]]]
+        for (i <- 0 until d.length)
+          d(i).ready := false.B
+
+      case _ =>
+    }
+}
+
 final class NodeDataLanes[Lane <: Data] private[vutils] (
-  private[vutils] val vec: Vec[Lane]
+  private[this] val rawVec: Vec[Lane]
 ) {
-  def apply(idx: Int): Lane  = vec(idx)
-  def apply(idx: UInt): Lane = vec(idx)
-  def length: Int            = vec.length
-  def raw: Vec[Lane]         = vec
+  def apply(idx: Int): Lane  = rawVec(idx)
+  def apply(idx: UInt): Lane = rawVec(idx)
+  def length: Int            = rawVec.length
+  def raw: Vec[Lane]         = rawVec
 }
 
 object NodeDataLanes {
   implicit def toVec[Lane <: Data](lanes: NodeDataLanes[Lane]): Vec[Lane] =
-    lanes.vec
+    lanes.raw
 }
 
 final class NodeRawLanes[Lane <: Data] private[vutils] (
-  private[vutils] val vec: Vec[Lane]
+  private[this] val rawVec: Vec[Lane]
 ) {
-  val lanes: NodeDataLanes[Lane] = new NodeDataLanes(vec)
+  val lanes: NodeDataLanes[Lane] = new NodeDataLanes(rawVec)
 
-  def apply(idx: Int): Lane  = vec(idx)
-  def apply(idx: UInt): Lane = vec(idx)
-  def length: Int            = vec.length
-  def raw: Vec[Lane]         = vec
+  def apply(idx: Int): Lane  = rawVec(idx)
+  def apply(idx: UInt): Lane = rawVec(idx)
+  def length: Int            = rawVec.length
+  def raw: Vec[Lane]         = rawVec
 }
 
 object NodeRawLanes {
   implicit def toVec[Lane <: Data](lanes: NodeRawLanes[Lane]): Vec[Lane] =
-    lanes.vec
+    lanes.raw
 }
 
 final class NodeInLanes[C, Lane <: Data] private[vutils] (
@@ -96,21 +192,22 @@ final class NodeInLanes[C, Lane <: Data] private[vutils] (
   name: String,
   protocol: NodePortProtocol,
   fullName: String,
-  private[vutils] val vec: Vec[Lane]
+  required: Boolean,
+  private[this] val rawVec: Vec[Lane]
 ) {
   def apply(idx: Int): NodeInLane[C, Lane] = {
-    require(idx >= 0 && idx < vec.length, s"NodeInVec '$fullName' lane index $idx out of range 0..${vec.length - 1}")
-    new NodeInLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, vec(idx))
+    require(idx >= 0 && idx < rawVec.length, s"NodeInVec '$fullName' lane index $idx out of range 0..${rawVec.length - 1}")
+    new NodeInLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), required, idx, rawVec(idx), parentName = Some(name))
   }
 
-  def apply(idx: UInt): Lane = vec(idx)
-  def length: Int            = vec.length
-  def raw: Vec[Lane]         = vec
+  def apply(idx: UInt): Lane = rawVec(idx)
+  def length: Int            = rawVec.length
+  def raw: Vec[Lane]         = rawVec
 }
 
 object NodeInLanes {
   implicit def toVec[C, Lane <: Data](lanes: NodeInLanes[C, Lane]): Vec[Lane] =
-    lanes.vec
+    lanes.raw
 }
 
 final class NodeOutLanes[C, Lane <: Data] private[vutils] (
@@ -118,21 +215,22 @@ final class NodeOutLanes[C, Lane <: Data] private[vutils] (
   name: String,
   protocol: NodePortProtocol,
   fullName: String,
-  private[vutils] val vec: Vec[Lane]
+  required: Boolean,
+  private[this] val rawVec: Vec[Lane]
 ) {
   def apply(idx: Int): NodeOutLane[C, Lane] = {
-    require(idx >= 0 && idx < vec.length, s"NodeOutVec '$fullName' lane index $idx out of range 0..${vec.length - 1}")
-    new NodeOutLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), idx, vec(idx))
+    require(idx >= 0 && idx < rawVec.length, s"NodeOutVec '$fullName' lane index $idx out of range 0..${rawVec.length - 1}")
+    new NodeOutLane(owner, s"${name}_$idx", NodePortProtocol.lane(protocol), required, idx, rawVec(idx), parentName = Some(name))
   }
 
-  def apply(idx: UInt): Lane = vec(idx)
-  def length: Int            = vec.length
-  def raw: Vec[Lane]         = vec
+  def apply(idx: UInt): Lane = rawVec(idx)
+  def length: Int            = rawVec.length
+  def raw: Vec[Lane]         = rawVec
 }
 
 object NodeOutLanes {
   implicit def toVec[C, Lane <: Data](lanes: NodeOutLanes[C, Lane]): Vec[Lane] =
-    lanes.vec
+    lanes.raw
 }
 
 sealed trait NodePort[C, PortData <: Data] {
@@ -140,8 +238,10 @@ sealed trait NodePort[C, PortData <: Data] {
   def name: String
   def role: NodePortRole
   def protocol: NodePortProtocol
+  def required: Boolean
 
   private[vutils] def data: PortData
+  private[vutils] def parentName: Option[String] = None
 
   final def fullName: String =
     s"${owner.nodeName}.$name"
@@ -169,176 +269,204 @@ final class NodeRaw[C, PortData <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
   val protocol: NodePortProtocol,
-  val io: PortData
+  val required: Boolean,
+  private[this] val portData: PortData
 ) extends NodeRawPort[C, PortData] {
   override val role: NodePortRole             = NodePortRole.Raw
-  override private[vutils] val data: PortData = io
-
-  io.suggestName(name)
+  override private[vutils] def data: PortData = portData
+  def io: PortData                            = portData
 }
 
 final class NodeIn[C, PortData <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
   val protocol: NodePortProtocol,
-  val in: PortData
+  val required: Boolean,
+  private[this] val portData: PortData
 ) extends NodeInputPort[C, PortData] {
   override val role: NodePortRole             = NodePortRole.Sink
-  override private[vutils] val data: PortData = in
+  override private[vutils] def data: PortData = portData
+  def in: PortData                            = portData
 
-  in.suggestName(name)
+  if (!required) {
+    NodePortDefault.localSink(protocol, portData)
+  }
 }
 
 final class NodeOut[C, PortData <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
   val protocol: NodePortProtocol,
-  val out: PortData
+  val required: Boolean,
+  private[this] val portData: PortData
 ) extends NodeOutputPort[C, PortData] {
   override val role: NodePortRole             = NodePortRole.Source
-  override private[vutils] val data: PortData = out
+  override private[vutils] def data: PortData = portData
+  def out: PortData                           = portData
 
-  out.suggestName(name)
+  if (!required) {
+    NodePortDefault.localSource(protocol, portData)
+  }
 }
 
 final class NodeInLane[C, Lane <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
   val protocol: NodePortProtocol,
+  val required: Boolean,
   val index: Int,
-  val in: Lane
+  private[this] val portData: Lane,
+  override private[vutils] val parentName: Option[String]
 ) extends NodeInputPort[C, Lane] {
   override val role: NodePortRole         = NodePortRole.Sink
-  override private[vutils] val data: Lane = in
+  override private[vutils] def data: Lane = portData
+  def in: Lane                            = portData
 }
 
 final class NodeOutLane[C, Lane <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
   val protocol: NodePortProtocol,
+  val required: Boolean,
   val index: Int,
-  val out: Lane
+  private[this] val portData: Lane,
+  override private[vutils] val parentName: Option[String]
 ) extends NodeOutputPort[C, Lane] {
   override val role: NodePortRole         = NodePortRole.Source
-  override private[vutils] val data: Lane = out
+  override private[vutils] def data: Lane = portData
+  def out: Lane                           = portData
 }
 
 final class NodeInVec[C, Lane <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
   val protocol: NodePortProtocol,
-  raw: Vec[Lane]
+  val required: Boolean,
+  private[this] val rawVec: Vec[Lane]
 ) extends NodeInputPort[C, Vec[Lane]] {
   override val role: NodePortRole              = NodePortRole.Sink
-  override private[vutils] val data: Vec[Lane] = raw
+  override private[vutils] def data: Vec[Lane] = rawVec
 
-  val in: NodeRawLanes[Lane]      = new NodeRawLanes(raw)
-  val lanes: NodeInLanes[C, Lane] = new NodeInLanes(owner, name, protocol, fullName, raw)
+  val in: NodeRawLanes[Lane]      = new NodeRawLanes(rawVec)
+  val lanes: NodeInLanes[C, Lane] = new NodeInLanes(owner, name, protocol, fullName, required, rawVec)
 
-  def vec: Vec[Lane]                       = raw
+  def vec: Vec[Lane]                       = rawVec
+  def raw: Vec[Lane]                       = rawVec
   def lane(idx: Int): NodeInLane[C, Lane]  = lanes(idx)
   def apply(idx: Int): NodeInLane[C, Lane] = lanes(idx)
-  def apply(idx: UInt): Lane               = raw(idx)
+  def apply(idx: UInt): Lane               = rawVec(idx)
 
-  raw.suggestName(name)
+  if (!required) {
+    NodePortDefault.localSink(protocol, rawVec)
+  }
 }
 
 final class NodeOutVec[C, Lane <: Data] private[vutils] (
   val owner: Node[C],
   val name: String,
   val protocol: NodePortProtocol,
-  raw: Vec[Lane]
+  val required: Boolean,
+  private[this] val rawVec: Vec[Lane]
 ) extends NodeOutputPort[C, Vec[Lane]] {
   override val role: NodePortRole              = NodePortRole.Source
-  override private[vutils] val data: Vec[Lane] = raw
+  override private[vutils] def data: Vec[Lane] = rawVec
 
-  val out: NodeRawLanes[Lane]      = new NodeRawLanes(raw)
-  val lanes: NodeOutLanes[C, Lane] = new NodeOutLanes(owner, name, protocol, fullName, raw)
+  val out: NodeRawLanes[Lane]      = new NodeRawLanes(rawVec)
+  val lanes: NodeOutLanes[C, Lane] = new NodeOutLanes(owner, name, protocol, fullName, required, rawVec)
 
-  def vec: Vec[Lane]                        = raw
+  def vec: Vec[Lane]                        = rawVec
+  def raw: Vec[Lane]                        = rawVec
   def lane(idx: Int): NodeOutLane[C, Lane]  = lanes(idx)
   def apply(idx: Int): NodeOutLane[C, Lane] = lanes(idx)
-  def apply(idx: UInt): Lane                = raw(idx)
+  def apply(idx: UInt): Lane                = rawVec(idx)
 
-  raw.suggestName(name)
+  if (!required) {
+    NodePortDefault.localSource(protocol, rawVec)
+  }
 }
 
 object NodePort {
-  def raw[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeRaw[C, P] =
-    rawWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+  private def namedIO[P <: Data](name: String)(gen: => P): P = {
+    val result = IO(gen)
+    result.suggestName(name)
+    result
+  }
 
-  def rawWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeRaw[C, P] =
-    new NodeRaw(owner, name, NodePortProtocol.Raw, IO(payload(ctx)))
+  def raw[C, P <: Data: ClassTag](owner: Node[C], name: String, required: Boolean = false)(implicit ctx: C): NodeRaw[C, P] =
+    rawWith(owner, name, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def input[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeIn[C, P] =
-    inputWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+  def rawWith[C, P <: Data](owner: Node[C], name: String, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeRaw[C, P] =
+    new NodeRaw(owner, name, NodePortProtocol.Raw, required, namedIO(name)(payload(ctx)))
 
-  def output[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeOut[C, P] =
-    outputWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+  def input[C, P <: Data: ClassTag](owner: Node[C], name: String, required: Boolean = false)(implicit ctx: C): NodeIn[C, P] =
+    inputWith(owner, name, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def inputWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeIn[C, P] =
-    new NodeIn(owner, name, NodePortProtocol.Raw, IO(Input(payload(ctx))))
+  def output[C, P <: Data: ClassTag](owner: Node[C], name: String, required: Boolean = false)(implicit ctx: C): NodeOut[C, P] =
+    outputWith(owner, name, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def outputWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeOut[C, P] =
-    new NodeOut(owner, name, NodePortProtocol.Raw, IO(Output(payload(ctx))))
+  def inputWith[C, P <: Data](owner: Node[C], name: String, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeIn[C, P] =
+    new NodeIn(owner, name, NodePortProtocol.Raw, required, namedIO(name)(Input(payload(ctx))))
 
-  def validInput[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeIn[C, ValidIO[P]] =
-    validInputWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+  def outputWith[C, P <: Data](owner: Node[C], name: String, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeOut[C, P] =
+    new NodeOut(owner, name, NodePortProtocol.Raw, required, namedIO(name)(Output(payload(ctx))))
 
-  def validOutput[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeOut[C, ValidIO[P]] =
-    validOutputWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+  def validInput[C, P <: Data: ClassTag](owner: Node[C], name: String, required: Boolean = false)(implicit ctx: C): NodeIn[C, ValidIO[P]] =
+    validInputWith(owner, name, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def validInputWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeIn[C, ValidIO[P]] =
-    new NodeIn(owner, name, NodePortProtocol.Valid, IO(Flipped(Valid(payload(ctx)))))
+  def validOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, required: Boolean = false)(implicit ctx: C): NodeOut[C, ValidIO[P]] =
+    validOutputWith(owner, name, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def validOutputWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeOut[C, ValidIO[P]] =
-    new NodeOut(owner, name, NodePortProtocol.Valid, IO(Valid(payload(ctx))))
+  def validInputWith[C, P <: Data](owner: Node[C], name: String, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeIn[C, ValidIO[P]] =
+    new NodeIn(owner, name, NodePortProtocol.Valid, required, namedIO(name)(Flipped(Valid(payload(ctx)))))
 
-  def decoupledInput[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeIn[C, DecoupledIO[P]] =
-    decoupledInputWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+  def validOutputWith[C, P <: Data](owner: Node[C], name: String, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeOut[C, ValidIO[P]] =
+    new NodeOut(owner, name, NodePortProtocol.Valid, required, namedIO(name)(Valid(payload(ctx))))
 
-  def decoupledOutput[C, P <: Data: ClassTag](owner: Node[C], name: String)(implicit ctx: C): NodeOut[C, DecoupledIO[P]] =
-    decoupledOutputWith(owner, name)(ctx => PayloadFactory.auto[C, P](ctx))
+  def decoupledInput[C, P <: Data: ClassTag](owner: Node[C], name: String, required: Boolean = false)(implicit ctx: C): NodeIn[C, DecoupledIO[P]] =
+    decoupledInputWith(owner, name, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def decoupledInputWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeIn[C, DecoupledIO[P]] =
-    new NodeIn(owner, name, NodePortProtocol.Decoupled, IO(Flipped(Decoupled(payload(ctx)))))
+  def decoupledOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, required: Boolean = false)(implicit ctx: C): NodeOut[C, DecoupledIO[P]] =
+    decoupledOutputWith(owner, name, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def decoupledOutputWith[C, P <: Data](owner: Node[C], name: String)(payload: C => P)(implicit ctx: C): NodeOut[C, DecoupledIO[P]] =
-    new NodeOut(owner, name, NodePortProtocol.Decoupled, IO(Decoupled(payload(ctx))))
+  def decoupledInputWith[C, P <: Data](owner: Node[C], name: String, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeIn[C, DecoupledIO[P]] =
+    new NodeIn(owner, name, NodePortProtocol.Decoupled, required, namedIO(name)(Flipped(Decoupled(payload(ctx)))))
 
-  def vecInput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int)(implicit ctx: C): NodeInVec[C, P] =
-    vecInputWith(owner, name, lanes)(ctx => PayloadFactory.auto[C, P](ctx))
+  def decoupledOutputWith[C, P <: Data](owner: Node[C], name: String, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeOut[C, DecoupledIO[P]] =
+    new NodeOut(owner, name, NodePortProtocol.Decoupled, required, namedIO(name)(Decoupled(payload(ctx))))
 
-  def vecOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int)(implicit ctx: C): NodeOutVec[C, P] =
-    vecOutputWith(owner, name, lanes)(ctx => PayloadFactory.auto[C, P](ctx))
+  def vecInput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(implicit ctx: C): NodeInVec[C, P] =
+    vecInputWith(owner, name, lanes, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def vecInputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int)(payload: C => P)(implicit ctx: C): NodeInVec[C, P] =
-    new NodeInVec(owner, name, NodePortProtocol.RawVec, IO(Input(Vec(lanes(ctx), payload(ctx)))))
+  def vecOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(implicit ctx: C): NodeOutVec[C, P] =
+    vecOutputWith(owner, name, lanes, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def vecOutputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int)(payload: C => P)(implicit ctx: C): NodeOutVec[C, P] =
-    new NodeOutVec(owner, name, NodePortProtocol.RawVec, IO(Output(Vec(lanes(ctx), payload(ctx)))))
+  def vecInputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeInVec[C, P] =
+    new NodeInVec(owner, name, NodePortProtocol.RawVec, required, namedIO(name)(Input(Vec(lanes(ctx), payload(ctx)))))
 
-  def validVecInput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int)(implicit ctx: C): NodeInVec[C, ValidIO[P]] =
-    validVecInputWith(owner, name, lanes)(ctx => PayloadFactory.auto[C, P](ctx))
+  def vecOutputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeOutVec[C, P] =
+    new NodeOutVec(owner, name, NodePortProtocol.RawVec, required, namedIO(name)(Output(Vec(lanes(ctx), payload(ctx)))))
 
-  def validVecOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int)(implicit ctx: C): NodeOutVec[C, ValidIO[P]] =
-    validVecOutputWith(owner, name, lanes)(ctx => PayloadFactory.auto[C, P](ctx))
+  def validVecInput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(implicit ctx: C): NodeInVec[C, ValidIO[P]] =
+    validVecInputWith(owner, name, lanes, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def validVecInputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int)(payload: C => P)(implicit ctx: C): NodeInVec[C, ValidIO[P]] =
-    new NodeInVec(owner, name, NodePortProtocol.ValidVec, IO(Flipped(Vec(lanes(ctx), Valid(payload(ctx))))))
+  def validVecOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(implicit ctx: C): NodeOutVec[C, ValidIO[P]] =
+    validVecOutputWith(owner, name, lanes, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def validVecOutputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int)(payload: C => P)(implicit ctx: C): NodeOutVec[C, ValidIO[P]] =
-    new NodeOutVec(owner, name, NodePortProtocol.ValidVec, IO(Vec(lanes(ctx), Valid(payload(ctx)))))
+  def validVecInputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeInVec[C, ValidIO[P]] =
+    new NodeInVec(owner, name, NodePortProtocol.ValidVec, required, namedIO(name)(Flipped(Vec(lanes(ctx), Valid(payload(ctx))))))
 
-  def decoupledVecInput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int)(implicit ctx: C): NodeInVec[C, DecoupledIO[P]] =
-    decoupledVecInputWith(owner, name, lanes)(ctx => PayloadFactory.auto[C, P](ctx))
+  def validVecOutputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeOutVec[C, ValidIO[P]] =
+    new NodeOutVec(owner, name, NodePortProtocol.ValidVec, required, namedIO(name)(Vec(lanes(ctx), Valid(payload(ctx)))))
 
-  def decoupledVecOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int)(implicit ctx: C): NodeOutVec[C, DecoupledIO[P]] =
-    decoupledVecOutputWith(owner, name, lanes)(ctx => PayloadFactory.auto[C, P](ctx))
+  def decoupledVecInput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(implicit ctx: C): NodeInVec[C, DecoupledIO[P]] =
+    decoupledVecInputWith(owner, name, lanes, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def decoupledVecInputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int)(payload: C => P)(implicit ctx: C): NodeInVec[C, DecoupledIO[P]] =
-    new NodeInVec(owner, name, NodePortProtocol.DecoupledVec, IO(Flipped(Vec(lanes(ctx), Decoupled(payload(ctx))))))
+  def decoupledVecOutput[C, P <: Data: ClassTag](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(implicit ctx: C): NodeOutVec[C, DecoupledIO[P]] =
+    decoupledVecOutputWith(owner, name, lanes, required)(ctx => PayloadFactory.auto[C, P](ctx))
 
-  def decoupledVecOutputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int)(payload: C => P)(implicit ctx: C): NodeOutVec[C, DecoupledIO[P]] =
-    new NodeOutVec(owner, name, NodePortProtocol.DecoupledVec, IO(Vec(lanes(ctx), Decoupled(payload(ctx)))))
+  def decoupledVecInputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeInVec[C, DecoupledIO[P]] =
+    new NodeInVec(owner, name, NodePortProtocol.DecoupledVec, required, namedIO(name)(Flipped(Vec(lanes(ctx), Decoupled(payload(ctx))))))
+
+  def decoupledVecOutputWith[C, P <: Data](owner: Node[C], name: String, lanes: C => Int, required: Boolean = false)(payload: C => P)(implicit ctx: C): NodeOutVec[C, DecoupledIO[P]] =
+    new NodeOutVec(owner, name, NodePortProtocol.DecoupledVec, required, namedIO(name)(Vec(lanes(ctx), Decoupled(payload(ctx)))))
 }

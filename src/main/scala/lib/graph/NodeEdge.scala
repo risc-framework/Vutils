@@ -6,6 +6,10 @@ import scala.util.Try
 sealed trait NodeConnection[C] {
   private[vutils] def ports: Seq[NodePort[C, _ <: Data]]
   private[vutils] def connect(): Unit
+  private[vutils] def directional: Boolean
+
+  private[vutils] def description: String =
+    ports.map(_.fullName).mkString(" -> ")
 }
 
 private object NodeConnectionWarning {
@@ -100,6 +104,8 @@ final case class NodeEdge[C, PortData <: Data](
     s"NodeEdge: cannot connect '${source.fullName}' to '${sink.fullName}': protocol mismatch ${source.protocol.name} != ${sink.protocol.name}"
   )
 
+  override private[vutils] def directional: Boolean = true
+
   override private[vutils] def ports: Seq[NodePort[C, _ <: Data]] =
     Seq(source, sink)
 
@@ -124,6 +130,8 @@ final case class NodeRawEdge[C, PortData <: Data](
     left.protocol == right.protocol,
     s"NodeRawEdge: cannot connect '${left.fullName}' to '${right.fullName}': protocol mismatch ${left.protocol.name} != ${right.protocol.name}"
   )
+
+  override private[vutils] def directional: Boolean = false
 
   override private[vutils] def ports: Seq[NodePort[C, _ <: Data]] =
     Seq(left, right)
@@ -154,6 +162,8 @@ final case class NodeExpose[C, PortData <: Data](
     left.protocol == right.protocol,
     s"NodeExpose: cannot expose '${left.fullName}' to '${right.fullName}': protocol mismatch ${left.protocol.name} != ${right.protocol.name}"
   )
+
+  override private[vutils] def directional: Boolean = true
 
   override private[vutils] def ports: Seq[NodePort[C, _ <: Data]] =
     Seq(left, right)
